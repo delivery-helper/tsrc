@@ -244,6 +244,20 @@ def _create_plain_worktree(
         run_git(clone, "worktree", "add", "-b", branch, str(path), base_ref)
 
 
+def _provision_kind() -> str:
+    """The `--provision` mechanism for this platform (design 6.2).
+
+    Linux/WSL sessions are overlayfs mounts over the prebuilt
+    base; macOS sessions are APFS clones of it.  Both share the
+    base layout and the ledger fields, so the rest of the
+    lifecycle (list, hold, remove, prune) only ever looks at the
+    recorded kind.
+    """
+    if sys.platform == "darwin":
+        return "apfs-clone"
+    return "overlay"
+
+
 def _create_worktree(
     workspace: Path,
     clone: Path,
@@ -259,6 +273,12 @@ def _create_worktree(
     if merged.exists():
         raise TsrcExtError("worktree path already exists: %s" % merged)
     if provision:
+        if _provision_kind() == "apfs-clone":
+            from tsrc_ext.apfs_clone import provision_clone
+
+            return provision_clone(
+                workspace, clone, dest, name, branch, base_ref, branch_exists
+            )
         from tsrc_ext.overlay import provision_overlay
 
         return provision_overlay(
@@ -310,7 +330,7 @@ def add_worktree(
         "status": "alive",
         "last_checked": now_iso(),
     }
-    if created["provision"] == "overlay":
+    if created.get("base") is not None:
         entry["base"] = created.get("base")
         entry["base_commit"] = created.get("base_commit")
     data["worktrees"].append(entry)
@@ -381,18 +401,23 @@ def remove_worktree(  # noqa: C901
                 "worktree '%s' has unpushed work (%s); push first, "
                 "or use --force" % (name, reason)
             )
-        if entry.get("provision") == "overlay":
-            # The .git file lives in upper, so after the unmount
-            # the merged directory is empty and `git worktree
-            # remove` cannot validate it.  Unregister by removing
-            # the admin directory git itself points at (read from
-            # the .git file while the mount is still up), which is
-            # exactly what git's own removal does after deleting
-            # the tree.
+        if entry.get("provision") in ("overlay", "apfs-clone"):
+            # The .git file lives inside the session tree (the
+            # overlay upper, the clone itself), and once the tree
+            # is torn down `git worktree remove` cannot validate
+            # it.  Unregister by removing the admin directory git
+            # itself points at (read from the .git file while the
+            # tree is still up), which is exactly what git's own
+            # removal does after deleting the tree.
             gitdir = _read_gitdir(path)
-            from tsrc_ext.overlay import teardown_overlay
+            if entry.get("provision") == "overlay":
+                from tsrc_ext.overlay import teardown_overlay
 
-            teardown_overlay(workspace, name, path)
+                teardown_overlay(workspace, name, path)
+            else:
+                from tsrc_ext.apfs_clone import teardown_clone
+
+                teardown_clone(workspace, name, path)
             if path.exists():
                 shutil.rmtree(path)
             if gitdir is not None and gitdir.is_dir():
@@ -560,7 +585,7 @@ def start_bundle(  # noqa: C901
             "status": "alive",
             "last_checked": now_iso(),
         }
-        if created["provision"] == "overlay":
+        if created.get("base") is not None:
             entry["base"] = created.get("base")
             entry["base_commit"] = created.get("base_commit")
         data["worktrees"].append(entry)
@@ -735,7 +760,8 @@ def build_parser() -> argparse.ArgumentParser:
     p_add.add_argument(
         "--provision",
         action="store_true",
-        help="provision from the prebuilt base via overlayfs",
+        help="provision from the prebuilt base (overlayfs on Linux, "
+        "APFS clone on macOS)",
     )
     p_add.add_argument("--owner", help="owner recorded in the ledger")
     p_add.set_defaults(run=_cmd_add)
@@ -789,7 +815,8 @@ def build_parser() -> argparse.ArgumentParser:
     p_start.add_argument(
         "--provision",
         action="store_true",
-        help="provision worktrees from prebuilt bases via overlayfs",
+        help="provision worktrees from prebuilt bases (overlayfs on "
+        "Linux, APFS clone on macOS)",
     )
     p_start.add_argument(
         "--fetch",

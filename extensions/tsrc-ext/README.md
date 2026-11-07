@@ -66,20 +66,33 @@ listed, and re-running the same `start` fills in only what is
 missing. A repo that already has the branch is taken into the
 bundle as a member.
 
-## --provision (overlay)
+## --provision (prebuilt base)
 
 `--provision` provisions a worktree from a prebuilt base
 (`<workspace>/.tsrc/prebuild/<dest-slug>/` — a full checkout with
 dependencies installed and `.git` removed; record the commit in
-`<slug>.json` beside the base directory, not inside it). On Linux/WSL the session tree is an overlayfs mount
-(lowerdir=base, per-session upper/work), mounted with
-`sudo mount -t overlay` (passwordless sudo required; see
-`tsrc_ext/overlay.py` for why the alternatives do not fit a
-per-command CLI). The base must be built from the same commit used
-as the branch base, or `git status` in the session will show the
-delta as uncommitted changes. Mac APFS-clone provisioning is not
-implemented in this stage (`--provision` on macOS fails with a
-clear message).
+`<slug>.json` beside the base directory, not inside it). The base
+must be built from the same commit used as the branch base, or
+`git status` in the session will show the delta as uncommitted
+changes. The session tree's mechanism is per platform; the base
+layout and the ledger fields (`provision`, `base`, `base_commit`)
+are shared.
+
+On Linux/WSL the session tree is an overlayfs mount
+(lowerdir=base, per-session upper/work under `.tsrc/overlay/`),
+mounted with `sudo mount -t overlay` (passwordless sudo required;
+see `tsrc_ext/overlay.py` for why the alternatives do not fit a
+per-command CLI).
+
+On macOS the session tree is an APFS clone of the base made with
+`cp -cR` (see `tsrc_ext/apfs_clone.py`): a real directory whose
+blocks are copy-on-write shared with the base, so it costs almost
+no extra volume space and teardown is a plain delete. The ledger
+records the kind as `apfs-clone`. Because `cp -c` silently falls
+back to a plain copy on a different filesystem, provisioning
+refuses to run when the base is not on the workspace's volume;
+and because `du` charges shared blocks to every clone, capacity
+is judged by the volume's free space, not by `du`.
 
 ## Engine seam
 
