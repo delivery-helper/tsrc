@@ -48,10 +48,8 @@ Worktrees live under `<workspace>/.tsrc/worktrees/<name>`.
 ```sh
 tsrc worktree add foo/bar my-task
 tsrc worktree add foo/bar my-task --branch feature-x --provision
-tsrc worktree list                   # hold marks, liveness, unregistered
-tsrc worktree hold my-task
-tsrc worktree unhold my-task
-tsrc worktree remove my-task         # refuses dirty / unpushed / held
+tsrc worktree list                   # liveness, unregistered
+tsrc worktree remove my-task         # refuses dirty / unpushed
 tsrc worktree remove my-task --force
 tsrc worktree prune                  # drop ledger entries whose dir is gone
 tsrc worktree start feature-x -g daiko
@@ -59,11 +57,18 @@ tsrc worktree start feature-x foo/bar baz/qux
 ```
 
 `remove` refuses uncommitted changes and unpushed work by
-default. `start` cuts the same branch across a bundle of repos,
+default. Holds do not exist: autohold was dropped on 2026-11-07,
+so a worktree whose task failed is closed by default like any
+other. Ledgers written by earlier versions may carry a `held`
+flag on entries; it is dropped when the ledger is loaded, and
+formerly held entries become ordinary ones (the remove guards
+above still apply to them).
+
+`start` cuts the same branch across a bundle of repos,
 provisions one worktree per repo, and records the bundle in the
-ledger. Partial failure is explicit: successes stand, failures are
-listed, and re-running the same `start` fills in only what is
-missing. A repo that already has the branch is taken into the
+ledger. Partial failure is explicit: successes stand, failures
+are listed, and re-running the same `start` fills in only what
+is missing. A repo that already has the branch is taken into the
 bundle as a member.
 
 ## --provision (prebuilt base)

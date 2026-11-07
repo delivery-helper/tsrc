@@ -4,7 +4,7 @@ Implements design sections 6.2, 6.3 and 12 (minimal ledger form).
 
 State lives in `<workspace>/.tsrc/worktrees.yml` — the ledger.
 Each entry carries the bundle (task) grouping, owner, creation
-time, base SHA, provision kind, hold flag, and the liveness state
+time, base SHA, provision kind, and the liveness state
 from the last scan (`status` + `last_checked`).  Liveness follows
 design section 12.3 in minimal form: an entry is `alive` when its
 directory exists and its HEAD is on the recorded branch, `missing`
@@ -79,6 +79,16 @@ def load_ledger(workspace: Path) -> dict:
     data.setdefault("version", 1)
     data.setdefault("bundles", [])
     data.setdefault("worktrees", [])
+    for entry in data["worktrees"]:
+        if isinstance(entry, dict):
+            # Ledgers written before autohold was dropped
+            # (2026-11-07) may carry a `held` flag on entries.
+            # Holds are no longer a mechanism, so the flag is
+            # dropped on load: a formerly held entry becomes an
+            # ordinary one (the usual remove guards still apply),
+            # and the key disappears the next time the ledger is
+            # saved.  It is never an error.
+            entry.pop("held", None)
     return data
 
 
@@ -250,7 +260,7 @@ def _provision_kind() -> str:
     Linux/WSL sessions are overlayfs mounts over the prebuilt
     base; macOS sessions are APFS clones of it.  Both share the
     base layout and the ledger fields, so the rest of the
-    lifecycle (list, hold, remove, prune) only ever looks at the
+    lifecycle (list, remove, prune) only ever looks at the
     recorded kind.
     """
     if sys.platform == "darwin":
@@ -326,7 +336,6 @@ def add_worktree(
         "base_sha": base_sha,
         "base_branch": repo.branch or "master",
         "provision": created["provision"],
-        "held": False,
         "status": "alive",
         "last_checked": now_iso(),
     }
@@ -383,10 +392,6 @@ def remove_worktree(  # noqa: C901
     entry = find_entry(data, name)
     if entry is None:
         raise TsrcExtError("no worktree '%s' in the ledger" % name)
-    if entry.get("held") and not force:
-        raise TsrcExtError(
-            "worktree '%s' is held (autohold); use --force to remove it" % name
-        )
     path = Path(entry["path"])
     clone = workspace / entry["repo"]
     if path.exists():
@@ -447,16 +452,6 @@ def remove_worktree(  # noqa: C901
 def _drop_empty_bundles(data: dict) -> None:
     members = {e.get("bundle") for e in data["worktrees"]}
     data["bundles"] = [b for b in data.get("bundles", []) if b.get("id") in members]
-
-
-def hold_worktree(workspace: Path, name: str, *, held: bool) -> dict:
-    data = load_ledger(workspace)
-    entry = find_entry(data, name)
-    if entry is None:
-        raise TsrcExtError("no worktree '%s' in the ledger" % name)
-    entry["held"] = held
-    save_ledger(workspace, data)
-    return {"name": name, "held": held}
 
 
 def prune_ledger(workspace: Path) -> dict:
@@ -581,7 +576,6 @@ def start_bundle(  # noqa: C901
             "base_sha": base_sha,
             "base_branch": base_branch,
             "provision": created["provision"],
-            "held": False,
             "status": "alive",
             "last_checked": now_iso(),
         }
@@ -656,10 +650,9 @@ def _cmd_list(args: argparse.Namespace) -> int:
         print("(no worktrees in the ledger)")
     for entry in entries:
         print(
-            "%s%s  %s  %s  %s  %s  %s"
+            "%s  %s  %s  %s  %s  %s"
             % (
                 entry["name"],
-                " [held]" if entry.get("held") else "",
                 entry["repo"],
                 entry["branch"],
                 entry.get("bundle") or "-",
@@ -677,14 +670,6 @@ def _cmd_remove(args: argparse.Namespace) -> int:
     workspace = find_workspace(args.workspace_path)
     result = engine.worktree_remove(workspace, args.name, force=args.force)
     print("removed %s" % result["removed"])
-    return 0
-
-
-def _cmd_hold(args: argparse.Namespace, held: bool) -> int:
-    engine = get_engine()
-    workspace = find_workspace(args.workspace_path)
-    result = engine.worktree_hold(workspace, args.name, held=held)
-    print("%s: %s" % (result["name"], "held" if held else "unheld"))
     return 0
 
 
@@ -766,7 +751,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_add.add_argument("--owner", help="owner recorded in the ledger")
     p_add.set_defaults(run=_cmd_add)
 
-    p_list = sub.add_parser("list", help="list ledger worktrees (with hold marks)")
+    p_list = sub.add_parser("list", help="list ledger worktrees (with liveness)")
     _add_workspace_arg(p_list)
     p_list.set_defaults(run=_cmd_list)
 
@@ -776,19 +761,9 @@ def build_parser() -> argparse.ArgumentParser:
     p_remove.add_argument(
         "--force",
         action="store_true",
-        help="remove despite uncommitted/unpushed work or a hold",
+        help="remove despite uncommitted/unpushed work",
     )
     p_remove.set_defaults(run=_cmd_remove)
-
-    p_hold = sub.add_parser("hold", help="mark a worktree held (autohold)")
-    _add_workspace_arg(p_hold)
-    p_hold.add_argument("name", help="worktree name")
-    p_hold.set_defaults(run=lambda a: _cmd_hold(a, True))
-
-    p_unhold = sub.add_parser("unhold", help="clear a worktree hold")
-    _add_workspace_arg(p_unhold)
-    p_unhold.add_argument("name", help="worktree name")
-    p_unhold.set_defaults(run=lambda a: _cmd_hold(a, False))
 
     p_prune = sub.add_parser(
         "prune", help="drop ledger entries whose directory is gone"

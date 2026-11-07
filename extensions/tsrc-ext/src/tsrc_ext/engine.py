@@ -67,10 +67,6 @@ class Engine(Protocol):
         self, workspace: Path, name: str, *, force: bool = False
     ) -> dict: ...
 
-    def worktree_hold(  # noqa: E704
-        self, workspace: Path, name: str, *, held: bool
-    ) -> dict: ...
-
     def worktree_prune(self, workspace: Path) -> dict: ...  # noqa: E704
 
     def worktree_start(  # noqa: E704
@@ -156,11 +152,6 @@ class OneShotEngine:
         from tsrc_ext.worktree import remove_worktree
 
         return remove_worktree(workspace, name, force=force)
-
-    def worktree_hold(self, workspace: Path, name: str, *, held: bool) -> dict:
-        from tsrc_ext.worktree import hold_worktree
-
-        return hold_worktree(workspace, name, held=held)
 
     def worktree_prune(self, workspace: Path) -> dict:
         from tsrc_ext.worktree import prune_ledger

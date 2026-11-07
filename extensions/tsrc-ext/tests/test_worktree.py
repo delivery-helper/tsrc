@@ -1,4 +1,4 @@
-"""Tests for tsrc-worktree: add/list/remove/hold cycle, the
+"""Tests for tsrc-worktree: add/list/remove cycle, the
 unregistered detection, and the ledger lifecycle.
 """
 
@@ -80,7 +80,23 @@ def test_remove_refuses_unpushed_work(
     assert worktree.main(["remove", "task-a"]) == 0
 
 
-def test_hold_blocks_remove(
+def test_hold_and_unhold_are_not_commands(
+    git_server: GitServer,
+    tsrc_cli: CLI,
+    workspace_path: Path,
+) -> None:
+    make_workspace(git_server, tsrc_cli, ["foo"])
+    assert worktree.main(["add", "foo", "task-a"]) == 0
+    # autohold was dropped (2026-11-07): there is no hold state
+    # to set or clear, so the commands no longer exist and
+    # argparse rejects them.
+    with pytest.raises(SystemExit):
+        worktree.main(["hold", "task-a"])
+    with pytest.raises(SystemExit):
+        worktree.main(["unhold", "task-a"])
+
+
+def test_legacy_held_flag_is_dropped_on_load(
     git_server: GitServer,
     tsrc_cli: CLI,
     workspace_path: Path,
@@ -88,11 +104,21 @@ def test_hold_blocks_remove(
 ) -> None:
     make_workspace(git_server, tsrc_cli, ["foo"])
     assert worktree.main(["add", "foo", "task-a"]) == 0
-    assert worktree.main(["hold", "task-a"]) == 0
+    # Simulate a ledger written while holds still existed.
+    data = worktree.load_ledger(workspace_path)
+    entry = worktree.find_entry(data, "task-a")
+    assert entry is not None
+    entry["held"] = True
+    worktree.save_ledger(workspace_path, data)
+    # The flag carries no meaning anymore: no [held] mark in the
+    # list output, and list's re-save drops the key from the file.
     assert worktree.main(["list"]) == 0
-    assert "[held]" in capsys.readouterr().out
-    assert worktree.main(["remove", "task-a"]) == 1
-    assert worktree.main(["unhold", "task-a"]) == 0
+    assert "[held]" not in capsys.readouterr().out
+    ledger = worktree.load_ledger(workspace_path)
+    saved = worktree.find_entry(ledger, "task-a")
+    assert saved is not None and "held" not in saved
+    # And the entry is removable without --force, under the usual
+    # guards (it is clean and has no unpushed work).
     assert worktree.main(["remove", "task-a"]) == 0
 
 
