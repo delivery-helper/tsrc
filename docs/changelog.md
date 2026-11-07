@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+Add external subcommand discovery: when the subcommand name is not a
+builtin command, `tsrc <name>` now hands over to a `tsrc-<name>`
+executable found on PATH (the same convention as `git <name>` and
+`git-<name>` executables), passing the remaining arguments unchanged.
+This lets users extend `tsrc` with their own commands without forking
+it. Builtin commands always take precedence, and nothing changes when
+no matching executable exists.
+
 ## 3.0.1 (2023-26-12)
 
 Fix some incorrect URLs in the project's metadata

@@ -3,6 +3,8 @@
 import argparse
 import functools
 import os
+import shutil
+import subprocess
 import sys
 from typing import Callable, Optional, Sequence
 
@@ -24,6 +26,95 @@ from tsrc.errors import Error
 
 ArgsList = Optional[Sequence[str]]
 MainFunc = Callable[..., None]
+
+
+#: Names of the commands implemented by tsrc itself, matching the
+#: names given to `add_parser()` by the modules in `tsrc.cli`.
+BUILTIN_COMMANDS = frozenset(
+    [
+        "apply-manifest",
+        "dump-manifest",
+        "foreach",
+        "init",
+        "log",
+        "manifest",
+        "status",
+        "sync",
+    ]
+)
+
+# Global options that may precede the subcommand name and take no value.
+_FLAG_OPTIONS = ("--verbose", "-q", "--quiet")
+
+# Global options that make argparse print something and exit before
+# any subcommand runs: discovery must not preempt them.
+_TERMINAL_OPTIONS = ("--version", "-h", "--help")
+
+
+def _subcommand_index(argv: Sequence[str]) -> Optional[int]:
+    """Return the index of the subcommand token in `argv`.
+
+    Skip the global options that may precede the subcommand
+    (``--verbose``, ``-q``/``--quiet`` and ``--color``), and return
+    None when there is no subcommand token to look at, or when a
+    terminal option (``--version``, ``-h``, ``--help``) is present:
+    those are left for argparse to handle.
+    """
+    index = 0
+    while index < len(argv):
+        token = argv[index]
+        if token in _TERMINAL_OPTIONS:
+            return None
+        if token in _FLAG_OPTIONS:
+            index += 1
+            continue
+        if token == "--color":
+            index += 2
+            continue
+        if token.startswith("--color="):
+            index += 1
+            continue
+        break
+    if index >= len(argv):
+        return None
+    if argv[index].startswith("-"):
+        return None
+    return index
+
+
+def _maybe_exec_external_command(argv: Sequence[str]) -> None:
+    """Hand over to an external `tsrc-<name>` command, if any.
+
+    When the subcommand is not a builtin command and an executable
+    named `tsrc-<name>` exists on PATH, run it with every argument
+    that follows the subcommand name, unchanged (the same
+    convention as `git-<name>` commands). Builtin commands always
+    take precedence. In every other case, return without doing
+    anything and let argparse handle the arguments as usual.
+
+    On POSIX, this process is replaced by the external command
+    with `os.execvp()`. On Windows there is no exec, so the
+    external command runs as a child process instead, and its
+    exit code is propagated.
+    """
+    index = _subcommand_index(argv)
+    if index is None:
+        return
+    name = argv[index]
+    if name in BUILTIN_COMMANDS or "/" in name:
+        return
+    external = "tsrc-" + name
+    path = shutil.which(external)
+    if path is None:
+        return
+    if "--verbose" in argv[:index]:
+        # `setup_ui()` honors the VERBOSE environment variable:
+        # reuse that existing convention so the flag is not lost
+        # when handing over to the external command.
+        os.environ.setdefault("VERBOSE", "1")
+    if os.name == "nt":
+        sys.exit(subprocess.call([path, *argv[index + 1 :]]))
+    os.execvp(external, [external, *argv[index + 1 :]])
 
 
 def main_wrapper(main_func: MainFunc) -> MainFunc:
@@ -77,6 +168,9 @@ def testable_main(args: ArgsList) -> None:
 
 
 def main_impl(args: ArgsList = None) -> None:
+    argv: Sequence[str] = sys.argv[1:] if args is None else args
+    _maybe_exec_external_command(argv)
+
     parser = argparse.ArgumentParser(prog="tsrc")
     parser.add_argument("--version", action="version", version="tsrc " + __version__)
 

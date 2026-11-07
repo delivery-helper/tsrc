@@ -110,3 +110,14 @@ tsrc version
 tsrc apply-manifest PATH
 :   Apply changes from the manifest file located at `PATH`. Useful to check changes
     in the manifest before publishing them to the manifest repository.
+
+## External commands
+
+Like `git`, `tsrc` can be extended with external commands: when the
+command name is not a builtin command and an executable named
+`tsrc-<name>` is found on PATH, running `tsrc <name> ...` runs that
+executable with the remaining arguments, unchanged.
+
+Builtin commands always take precedence: an executable named
+`tsrc-sync` on PATH, for instance, will never shadow the builtin
+`sync` command.
