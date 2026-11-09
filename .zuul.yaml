@@ -1,14 +1,8 @@
 # Experiment only (do not merge): #107 experiment 1 - dummy value through the case T tmpfs path.
-# Pod console output is not captured by Zuul, so the result goes to /tmp/e1.out and the pod is kept
-# alive for 240 s so that it can be read with a read-only kubectl exec.
+# (the pod-side checks are run from conftest.py because the job's repo_check_commands come from aether-config)
 - project:
     check:
       jobs:
         - repo-check-python-k8s:
             vars:
               read_token_dummy: true
-              repo_check_install_commands: []
-              repo_check_skip_install: true
-              repo_check_commands:
-                - echo Zj0vZGV2L3NobS8uenV1bC1yZWFkLXRva2VuCmVjaG8gIkUwIGhvc3Q6ICQoaG9zdG5hbWUpIHVzZXI6ICQoaWQgLXVuKSIKZWNobyAiRTEgbW91bnRpbmZvOiAkKGdyZXAgJyAvZGV2L3NobSAnIC9wcm9jL3NlbGYvbW91bnRpbmZvIHwgaGVhZCAtMSkiCmVjaG8gIkUxIGRmOiAkKGRmIC0tb3V0cHV0PWZzdHlwZSx0YXJnZXQgL2Rldi9zaG0gfCB0YWlsIC0xKSIKZWNobyAiRTEgc3RhdDogJChzdGF0IC1jICdtb2RlPSVhIG93bmVyPSVVIGJ5dGVzPSVzJyAkZikiCmVjaG8gIkU0IGZpbGUgc2hhMjU2OiAkKHNoYTI1NnN1bSA8ICRmIHwgY3V0IC1jMS02NCkiCmVjaG8gIkU0IGV4cGVjdGVkLW5vLW5ld2xpbmU6IGQ3Nzk2ZTBhMDQ4YTdjNzBiNDc0ZTJlODA3YTc4NzFlNThlZGU5NmZjYzVhOTk0OWM1YzlmZGQwMzFmNTExODIiCmVjaG8gIkU0IGV4cGVjdGVkLXdpdGgtbmV3bGluZTogM2IzZDA4MDk5ODMwNGJmNGU3ZmQ5ZDVkOWIzNTI2ZTFjZDM1MzA5ZmYxNTQ4NzI1MjQ5ZTY2ZmNkMmM3M2E4OCIKZWNobyAiRTQgZW52IEtJVF9SRUFEX1RPS0VOIGxlbj0keyNLSVRfUkVBRF9UT0tFTn0gc2hhMjU2PSQocHJpbnRmICVzICIkS0lUX1JFQURfVE9LRU4iIHwgc2hhMjU2c3VtIHwgY3V0IC1jMS02NCkiCmVjaG8gIkU0YiBhbnNpYmxlIHRtcCBkaXJzOiAkKGxzIC1BIC9kZXYvc2htLy5hbnNpYmxlLXRtcCAyPiYxIHwgaGVhZCAtMykgfCBob21lOiAkKGxzIC1BICRIT01FLy5hbnNpYmxlIDI+JjEgfCBoZWFkIC0zKSIKZWNobyAiRTRiIGxzIC9kZXYvc2htOiAkKGxzIC1BIC9kZXYvc2htIHwgdHIgJ1xuJyAnICcpIgplY2hvICJFMiBmaWxlcyBob2xkaW5nIHRoZSB2YWx1ZSAocG9kLXNpZGUpOiAkKHRpbWVvdXQgMTIwIGdyZXAgLXJsc0YgIiQocHJpbnRmICdEVU1NWS1SRUFELVRPS0VOLSVzJyBOT1QtQS1TRUNSRVQpIiAkSE9NRSAvdG1wIC92YXIvdG1wIC9kZXYvc2htIDI+L2Rldi9udWxsIHwgdHIgJ1xuJyAnICcpIgplY2hvICJFMiBlbnYtbmFtZSBoaXRzOiAkKGVudiB8IGdyZXAgLWMgJ15LSVRfUkVBRF9UT0tFTj0nKSIK | base64 -d | bash > /tmp/e1.out 2>&1
-                - sleep 240
