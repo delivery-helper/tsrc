@@ -108,3 +108,4 @@ tsrc is licensed under a [BSD 3-Clause license](https://github.com/your-tools/ts
 ## History
 
 This project was originally hosted on the [TankerHQ](https://github.com/TankerHQ) organization, which was [dmerejkowsky](https://github.com/dmerejkowsky)'s employer from 2016 to 2021. They kindly agreed to give back ownership of this project to Dimitri in 2021 - thanks! Dimitri later on shared this project even more by moving it to the [your-tools](https://github.com/your-tools) organization.
+<!-- Pod 経路の検証用（マージしない） -->
