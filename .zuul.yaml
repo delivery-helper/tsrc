@@ -1,0 +1,12 @@
+# TEST ONLY (verification PR, never merged): does a repo-check variant with an empty nodeset run?
+- project:
+    check:
+      jobs:
+        - repo-check:
+            voting: false
+            nodeset:
+              nodes: []
+            vars:
+              repo_check_skip_install: true
+              repo_check_commands:
+                - echo NODELESS-VARIANT-MARKER
