@@ -1,8 +1,7 @@
-# Experiment only (do not merge): #107 experiment 1 - dummy value through the case T tmpfs path.
-# (the pod-side checks are run from conftest.py because the job's repo_check_commands come from aether-config)
+# Experiment only (do not merge): #107 experiment 2 - real read token (one allow-listed id), tmpfs, early revoke.
 - project:
     check:
       jobs:
         - repo-check-python-k8s:
             vars:
-              read_token_dummy: true
+              kit_token_repository_ids: [1432185765]
