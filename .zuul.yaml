@@ -9,4 +9,4 @@
             vars:
               repo_check_skip_install: true
               repo_check_commands:
-                - echo NODELESS-VARIANT-MARKER
+                - "false"
